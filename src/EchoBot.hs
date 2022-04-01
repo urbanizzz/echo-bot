@@ -130,9 +130,11 @@ respond h (MessageEvent message)
   | otherwise = respondWithEchoedMessage h message
 
 isCommand :: Handle m a -> T.Text -> a -> Bool
-isCommand h _ message = case hTextFromMessage h message of
+isCommand h command message = case hTextFromMessage h message of
   Nothing -> False
-  Just _ -> error "Not implemented"
+  Just raw -> if T.strip raw == command
+              then True
+              else False
 
 handleHelpCommand :: Monad m => Handle m a -> m [Response a]
 handleHelpCommand h = do
