@@ -155,4 +155,6 @@ respondWithEchoedMessage :: Monad m => Handle m a -> a -> m [Response a]
 respondWithEchoedMessage h message = do
   Logger.logInfo (hLogHandle h) $
     "Echoing user input: " .< fromMaybe "<multimedia?>" (hTextFromMessage h message)
-  error "Not implemented"
+  st <- hGetState h
+  pure . replicate (stRepetitionCount st) . MessageResponse $ message
+
