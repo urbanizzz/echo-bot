@@ -149,8 +149,14 @@ handleSettingRepetitionCount h count = do
 handleRepeatCommand :: Monad m => Handle m a -> m [Response a]
 handleRepeatCommand h = do
   Logger.logInfo (hLogHandle h) "Got the repeat command"
-  error "Not implemented"
-
+  let configTitle = confRepeatReply . hConfig $ h
+  st <- hGetState h
+  let count = T.pack . show . stRepetitionCount $ st
+  let title = T.replace "{count}" count configTitle
+  let options = map (\n -> (n, SetRepetitionCountEvent n)) [1..5]
+  let response = MenuResponse title options
+  pure [response]
+  
 respondWithEchoedMessage :: Monad m => Handle m a -> a -> m [Response a]
 respondWithEchoedMessage h message = do
   Logger.logInfo (hLogHandle h) $
