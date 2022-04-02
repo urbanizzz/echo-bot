@@ -4,4 +4,6 @@
 .history/
 *~
 echo-bot.cabal
+config.yaml
+echo-bot.log
 
