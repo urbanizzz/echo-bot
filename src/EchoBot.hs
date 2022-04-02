@@ -144,7 +144,8 @@ handleHelpCommand h = do
 handleSettingRepetitionCount :: Monad m => Handle m a -> Int -> m [Response a]
 handleSettingRepetitionCount h count = do
   Logger.logInfo (hLogHandle h) $ "The user has set the repetition count to " .< count
-  error "Not implemented"
+  (hModifyState' h) (\_ -> State count)
+  pure []
 
 handleRepeatCommand :: Monad m => Handle m a -> m [Response a]
 handleRepeatCommand h = do
