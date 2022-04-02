@@ -139,8 +139,9 @@ isCommand h command message = case hTextFromMessage h message of
 handleHelpCommand :: Monad m => Handle m a -> m [Response a]
 handleHelpCommand h = do
   Logger.logInfo (hLogHandle h) "Got the help command"
-  error "Not implemented"
-
+  let helpText = hMessageFromText h . confHelpReply . hConfig $ h
+  pure [MessageResponse helpText]
+  
 handleSettingRepetitionCount :: Monad m => Handle m a -> Int -> m [Response a]
 handleSettingRepetitionCount h count = do
   Logger.logInfo (hLogHandle h) $ "The user has set the repetition count to " .< count
