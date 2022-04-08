@@ -7,7 +7,8 @@ module Logger.Impl
   )
 where
 
-import qualified Data.Text as T
+import Data.Text (Text)
+import Data.Text.IO (hPutStrLn)
 import qualified Logger
 import qualified System.IO
 
@@ -25,5 +26,8 @@ data Config = Config
 withHandle :: Config -> (Logger.Handle IO -> IO ()) -> IO ()
 withHandle config f = f Logger.Handle {Logger.hLowLevelLog = logWith config}
 
-logWith :: Config -> Logger.Level -> T.Text -> IO ()
-logWith _ _ _ = error "Not implemented"
+-- endpoint of log output
+logWith :: Config -> Logger.Level -> Text -> IO ()
+logWith (Config h minLevel) currentLevel text = if currentLevel >= minLevel 
+  then hPutStrLn h text
+  else pure ()
