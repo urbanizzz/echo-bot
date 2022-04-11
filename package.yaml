@@ -24,6 +24,7 @@ dependencies:
 - mtl
 - QuickCheck
 - hspec
+- yaml
 
 ghc-options:
 - -Wall
