@@ -8,7 +8,7 @@ module Config
   )
 where
 
-import qualified ConfigurationTypes as CT
+import qualified ConfigurationTypes
 import qualified EchoBot
 import qualified Logger.Impl
 import Logger (Level (..))
@@ -18,18 +18,18 @@ import qualified System.IO
 -- default values.
 getBotConfig :: IO EchoBot.Config
 getBotConfig = do
-  (CT.Config _ _ bot) <- CT.configFromYaml
+  (ConfigurationTypes.Config _ _ bot) <- ConfigurationTypes.configFromYaml
   pure EchoBot.Config 
-    { EchoBot.confHelpReply = CT.confHelpReply bot
-    , EchoBot.confRepeatReply = CT.confRepeatReply bot
-    , EchoBot.confRepetitionCount = CT.confRepeatDefault bot
+    { EchoBot.confHelpReply = ConfigurationTypes.confHelpReply bot
+    , EchoBot.confRepeatReply = ConfigurationTypes.confRepeatReply bot
+    , EchoBot.confRepetitionCount = ConfigurationTypes.confRepeatDefault bot
     }
 
 getLoggerConfig :: IO Logger.Impl.Config
 getLoggerConfig = do
-  (CT.Config logger _ _) <- CT.configFromYaml
-  logHandler <- getLogHandler $ CT.confPath logger
-  let minLevel = getMinLevel $ CT.confLevel logger
+  (ConfigurationTypes.Config logger _ _) <- ConfigurationTypes.configFromYaml
+  logHandler <- getLogHandler $ ConfigurationTypes.confPath logger
+  let minLevel = getMinLevel $ ConfigurationTypes.confLevel logger
   pure Logger.Impl.Config
     { Logger.Impl.confFileHandle  = logHandler
     , Logger.Impl.confMinLevel    = minLevel
@@ -43,14 +43,14 @@ getLogHandler file = do
   System.IO.hSetBuffering h System.IO.LineBuffering
   pure h
 
-getMinLevel :: CT.LogLevel -> Level
-getMinLevel CT.Debug    = Debug
-getMinLevel CT.Info     = Info
-getMinLevel CT.Warning  = Warning
-getMinLevel CT.Error    = Error
+getMinLevel :: ConfigurationTypes.LogLevel -> Level
+getMinLevel ConfigurationTypes.Debug    = Debug
+getMinLevel ConfigurationTypes.Info     = Info
+getMinLevel ConfigurationTypes.Warning  = Warning
+getMinLevel ConfigurationTypes.Error    = Error
 
-getFrontEndType :: IO CT.FrontEndType
+getFrontEndType :: IO ConfigurationTypes.FrontEndType
 getFrontEndType = do
-  (CT.Config _ front _) <- CT.configFromYaml
-  pure . CT.confFrontEndType $ front
+  (ConfigurationTypes.Config _ front _) <- ConfigurationTypes.configFromYaml
+  pure . ConfigurationTypes.confFrontEndType $ front
 
