@@ -25,6 +25,7 @@ dependencies:
 - QuickCheck
 - hspec
 - yaml
+- containers
 
 ghc-options:
 - -Wall
