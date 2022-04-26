@@ -26,6 +26,8 @@ dependencies:
 - hspec
 - yaml
 - containers
+- aeson
+- bytestring
 
 ghc-options:
 - -Wall

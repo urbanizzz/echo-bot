@@ -9,6 +9,7 @@ import Data.IORef (modifyIORef', newIORef, readIORef)
 import qualified Data.Text as T
 import qualified EchoBot
 import qualified FrontEnd.Console
+import qualified FrontEnd.Telegram
 import qualified Logger
 import qualified Logger.Impl
 import System.Exit (die)
@@ -18,11 +19,15 @@ main = do
   withLogHandle $ \logHandle -> do
     frontEnd <- Config.getFrontEndType
     case frontEnd of
-      ConfigurationTypes.TelegramFrontEnd ->
-        error "Not implemented"
+      ConfigurationTypes.TelegramFrontEnd -> do
+        newUserHandle <- newUserHandleForTelegram logHandle
+        runTelegramFrontEnd newUserHandle
       ConfigurationTypes.ConsoleFrontEnd -> do
         botHandle <- makeBotHandleForPlainText logHandle
         runConsoleFrontEnd botHandle
+
+runTelegramFrontEnd :: FrontEnd.Telegram.Handle -> IO ()
+runTelegramFrontEnd = FrontEnd.Telegram.run
 
 runConsoleFrontEnd :: EchoBot.Handle IO T.Text -> IO ()
 runConsoleFrontEnd botHandle =
@@ -56,10 +61,26 @@ makeBotHandleForPlainText logHandle = do
   stateRef <- newIORef initialState
   pure
     EchoBot.Handle
-      { EchoBot.hGetState = readIORef stateRef,
-        EchoBot.hModifyState' = modifyIORef' stateRef,
-        EchoBot.hLogHandle = logHandle,
-        EchoBot.hConfig = botConfig,
-        EchoBot.hTextFromMessage = Just,
-        EchoBot.hMessageFromText = id
+      { EchoBot.hGetState = readIORef stateRef
+      , EchoBot.hModifyState' = modifyIORef' stateRef
+      , EchoBot.hLogHandle = logHandle
+      , EchoBot.hConfig = botConfig
+      , EchoBot.hTextFromMessage = Just
+      , EchoBot.hMessageFromText = id
       }
+
+newUserHandleForTelegram :: Logger.Handle IO -> IO FrontEnd.Telegram.Handle
+newUserHandleForTelegram logHandle = do
+  botConfig <- Config.getBotConfig
+  initialState <- either (die . T.unpack) pure $ EchoBot.makeState botConfig
+  stateRef <- newIORef initialState
+  pure
+    EchoBot.Handle
+      { EchoBot.hGetState = readIORef stateRef
+      , EchoBot.hModifyState' = modifyIORef' stateRef
+      , EchoBot.hLogHandle = logHandle
+      , EchoBot.hConfig = botConfig
+      , EchoBot.hTextFromMessage = FrontEnd.Telegram.textFromMessage
+      , EchoBot.hMessageFromText = FrontEnd.Telegram.messageFromText
+      }
+
