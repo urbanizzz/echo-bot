@@ -28,6 +28,8 @@ dependencies:
 - containers
 - aeson
 - bytestring
+- http-conduit
+- http-client
 
 ghc-options:
 - -Wall
