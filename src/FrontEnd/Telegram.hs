@@ -21,47 +21,47 @@ import qualified Network.HTTP.Simple as Simple
 import Network.HTTP.Client.Internal ( Request(method,  responseTimeout), ResponseTimeout(ResponseTimeoutNone) )
 import Data.ByteString.Char8 (ByteString)
 
+type Handle = EchoBot.Handle IO Message
+type HandleMap = M.Map UserId Handle
+
 type UpdateId = Int
 type MessageId = Int
 type UserId = Int
 type ChatId = Int
-type Handle = EchoBot.Handle IO Message
-type HandleMap = M.Map UserId Handle
+type Message = T.Text
+type RepetitionCount = Int
 
-data Message 
-  = PlainText T.Text
-  | Sticker A.Object
-  | Picture A.Array
-
-data Update = Update UpdateId MessageId UserId ChatId Message
+data Update = Update
+  { updateId :: UpdateId
+  , messageId :: MessageId
+  , userId :: UserId
+  , chatId :: ChatId
+  , message :: Message
+  } deriving Show
 instance A.FromJSON Update where
   parseJSON = A.withObject "FromJSON Update" $ \o -> Update
     <$> (o .: "update_id")
     <*> (o .: "message" >>= (.: "message_id"))
     <*> (o .: "message" >>= (.: "from") >>= (.: "id"))
     <*> (o .: "message" >>= (.: "chat") >>= (.: "id"))
-    <*> (PlainText <$> (o .: "message" >>= \o1 -> o1 .:? "text" .!= ""))
--- instance A.ToJSON Message where
---  toJSON (Message _ chat_id txt) = object [ "chat_id" .= chat_id, "text" .= txt ]
+    <*> (o .: "message" >>= \o1 -> o1 .:? "text" .!= "")
 
 data Updates = Updates [Update]
 instance A.FromJSON Updates where
   parseJSON = A.withObject "FromJSON Updates" $ \o -> Updates
     <$> (o .: "result")
 
-textFromMessage :: Message -> Maybe T.Text
-textFromMessage (PlainText x) = Just x
-textFromMessage (Sticker _) = Nothing
-textFromMessage (Picture _) = Nothing
-
-messageFromText :: T.Text -> Message
-messageFromText = PlainText
-
 botURL :: String
 botURL = "https://api.telegram.org/bot949284451:AAGK8fCgIhv2KLcmT8Mz_bf-3hAl0Ccp7pA/"
 
 tgTimeout ::String 
 tgTimeout = "60"
+
+textFromMessage :: Message -> Maybe T.Text
+textFromMessage = Just
+
+messageFromText :: T.Text -> Message
+messageFromText = id
 
 getUpdates :: Handle -> UpdateId -> IO [Update]
 getUpdates h lastUpdateId = do
@@ -89,24 +89,21 @@ getUpdatesAsJSON lastUpdateId = do
   res <- Simple.httpBS request
   return $ Simple.getResponseBody res
 
-sendMessage :: Handle -> UserId -> ChatId -> Message -> IO ()
-sendMessage = undefined
-
 insertNewUser :: UserId -> Handle -> HandleMap -> HandleMap
 insertNewUser = M.insert
 
-proceedUpdate :: Handle -> IORef HandleMap -> Update -> IO ()
--- proceedUpdate newUserHandle handleMapRef (Update lastUpdateId messageId userId chatId message) = do
-proceedUpdate newUserHandle handleMapRef (Update _ _ userId chatId message) = do
+proceedUpdate :: Handle -> IORef HandleMap -> Update -> IO UpdateId
+proceedUpdate newUserHandle handleMapRef update = do
   handleMap <- readIORef handleMapRef
   modifyIORef' handleMapRef $ 
-    if userId `M.notMember` handleMap
-      then insertNewUser userId newUserHandle
+    if (userId update) `M.notMember` handleMap
+      then insertNewUser (userId update) newUserHandle
       else id
   handleMap' <- readIORef handleMapRef
-  let handle = handleMap' M.! userId
-  response <- EchoBot.respond handle (EchoBot.MessageEvent message)
-  mapM_ (handleResponse handle userId chatId) response
+  let handle = handleMap' M.! (userId update)
+  response <- EchoBot.respond handle (EchoBot.MessageEvent (message update))
+  mapM_ (handleResponse handle update) response
+  pure $ updateId update
 
 run :: Handle -> IO ()
 run newUserHandle = do
@@ -114,19 +111,53 @@ run newUserHandle = do
   lastUpdateIdRef <- newIORef (0 :: Int)
   forever $ do
     lastUpdateId <- readIORef lastUpdateIdRef
+    Logger.logDebug (EchoBot.hLogHandle newUserHandle) $ (T.pack . show $ lastUpdateId)
     updates <- getUpdates newUserHandle lastUpdateId
-    mapM_ (proceedUpdate newUserHandle handleMapRef) updates
+    updateIds <- mapM (proceedUpdate newUserHandle handleMapRef) updates
+    let newLastUpdateId = if null updateIds
+                          then lastUpdateId
+                          else 1 + (last updateIds)
+    modifyIORef' lastUpdateIdRef (\_ -> newLastUpdateId)
 
-type RepetitionCount = Int
+copyMessage :: Update -> IO ()
+copyMessage update = do
+  let requestObject = A.object
+        [ "chat_id" .= chatId update
+        , "from_chat_id" .= chatId update
+        , "message_id" .= messageId update
+        ] 
+  initialRequest <- Simple.parseRequest $ botURL ++ "copyMessage"
+  let requestWithBody = Simple.setRequestBodyJSON requestObject initialRequest
+  let request = requestWithBody
+        { method = "POST"
+        }
+  _ <- Simple.httpBS request
+  pure ()
 
-getNumber :: Handle -> UserId -> ChatId -> IO T.Text
-getNumber = undefined
+sendMessage :: ChatId -> Message -> IO ()
+sendMessage chat msg = do
+  let requestObject = A.object
+          [ "chat_id" .= chat
+          , "text" .= msg
+          ]
+  initialRequest <- Simple.parseRequest $ botURL ++ "sendMessage"
+  let requestWithBody = Simple.setRequestBodyJSON requestObject initialRequest
+  let request = requestWithBody
+        { method = "POST"
+        }
+  _ <- Simple.httpBS request
+  pure ()
 
-handleResponse :: Handle -> UserId -> ChatId -> EchoBot.Response Message -> IO ()
-handleResponse h userId chatId (EchoBot.MessageResponse x) = sendMessage h userId chatId x
-handleResponse h userId chatId (EchoBot.MenuResponse title options) = do
-  sendMessage h userId chatId $ PlainText title
-  rawText <- getNumber h userId chatId
+getNumber :: Handle -> Update -> IO T.Text
+getNumber = error "getNumber is not implemented"
+
+handleResponse :: Handle -> Update -> EchoBot.Response Message -> IO ()
+handleResponse _ update (EchoBot.MessageResponse x) = if (message update == x) 
+  then copyMessage update
+  else sendMessage (chatId update) x
+handleResponse h update (EchoBot.MenuResponse title options) = do
+  sendMessage (chatId update) title
+  rawText <- getNumber h update
   let number = getNumberFromRawText rawText
   let maybeEvent = M.lookup number $ M.fromList options
   _ <- maybe (pure []) (EchoBot.respond h) maybeEvent
