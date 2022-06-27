@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 module FrontEnd.Telegram
   ( run
@@ -13,6 +14,7 @@ import qualified EchoBot
 import qualified Logger
 import Control.Monad (forever)
 import Data.Aeson ((.=),(.:),(.:?),(.!=))
+import Data.Aeson.QQ
 import qualified Data.Aeson as A
 import qualified Data.Map.Strict as M
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
@@ -20,6 +22,9 @@ import Text.Read (readMaybe)
 import qualified Network.HTTP.Simple as Simple
 import Network.HTTP.Client.Internal ( Request(method,  responseTimeout), ResponseTimeout(ResponseTimeoutNone) )
 import Data.ByteString.Char8 (ByteString)
+import qualified Network.HTTP.Client as LowLevel
+import Data.Text.Encoding (decodeUtf8)
+import Data.ByteString.Lazy (toStrict)
 
 type Handle = EchoBot.Handle IO Message
 type HandleMap = M.Map UserId Handle
@@ -148,16 +153,42 @@ sendMessage chat msg = do
   _ <- Simple.httpBS request
   pure ()
 
-getNumber :: Handle -> Update -> IO T.Text
-getNumber = error "getNumber is not implemented"
+keySet :: A.Value
+keySet = [aesonQQ| {"one_time_keyboard":true,"keyboard":[[{"text":"1"},{"text":"2"},{"text":"3"},{"text":"4"},{"text":"5"}]]} |]
+
+getNumber :: Handle -> Update -> Message -> IO T.Text
+getNumber h update title = do
+  Logger.logDebug (EchoBot.hLogHandle h) $ "Calling getNumber"
+  let requestObject = A.object
+          [ "chat_id" .= chatId update
+          , "text" .= title
+          , "reply_markup" .= keySet
+          ]
+  initialRequest <- Simple.parseRequest $ botURL ++ "sendMessage"
+  let requestWithBody = Simple.setRequestBodyJSON requestObject initialRequest
+  let request = requestWithBody
+        { method = "POST"
+        }
+  Logger.logDebug (EchoBot.hLogHandle h) $ showBody . LowLevel.requestBody $ request
+  _ <- Simple.httpBS request
+  updates <- getUpdates h (1 + updateId update)
+  Logger.logDebug (EchoBot.hLogHandle h) $ (T.pack . show $ updates)
+  let result = if null updates
+        then "0"
+        else message . last $ updates
+  pure result
+
+showBody :: LowLevel.RequestBody -> T.Text
+showBody (LowLevel.RequestBodyLBS bs) = decodeUtf8 . toStrict $ bs
+showBody (LowLevel.RequestBodyBS bs) = decodeUtf8 bs
+showBody _ = "no RequestBody"
 
 handleResponse :: Handle -> Update -> EchoBot.Response Message -> IO ()
 handleResponse _ update (EchoBot.MessageResponse x) = if (message update == x) 
   then copyMessage update
   else sendMessage (chatId update) x
 handleResponse h update (EchoBot.MenuResponse title options) = do
-  sendMessage (chatId update) title
-  rawText <- getNumber h update
+  rawText <- getNumber h update title
   let number = getNumberFromRawText rawText
   let maybeEvent = M.lookup number $ M.fromList options
   _ <- maybe (pure []) (EchoBot.respond h) maybeEvent

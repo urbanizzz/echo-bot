@@ -27,6 +27,7 @@ dependencies:
 - yaml
 - containers
 - aeson
+- aeson-qq
 - bytestring
 - http-conduit
 - http-client
