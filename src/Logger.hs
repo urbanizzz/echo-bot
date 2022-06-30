@@ -37,7 +37,7 @@ logError h = hLowLevelLog h Error
 -- concise:
 --
 -- > Log.logError (hLogger h) "The error code is " .< e
-(.<) :: (Show a) => T.Text -> a -> T.Text
-text .< a = text <> T.pack (show a)
+(.<) :: T.Text -> T.Text -> T.Text
+(.<) = (<>)
 
 infixr 7 .<

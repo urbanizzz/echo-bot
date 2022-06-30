@@ -11,6 +11,7 @@ where
 
 import qualified Data.Text as T
 import qualified EchoBot
+import Logger ((.<))
 import qualified Logger
 import Control.Monad (forever)
 import Data.Aeson ((.=),(.:),(.:?),(.!=))
@@ -78,7 +79,7 @@ getUpdates h lastUpdateId = do
 eitherToUpdate :: Handle -> Either String Updates -> IO [Update]
 eitherToUpdate h eitherResult = case eitherResult of
   Left err -> do
-    Logger.logWarning (EchoBot.hLogHandle h) $ (T.pack err)
+    Logger.logWarning (EchoBot.hLogHandle h) $ "From Telegram.eitherToUpdate: " .< (T.pack err)
     pure []
   Right (Updates updates) -> pure updates
 
@@ -116,7 +117,7 @@ run newUserHandle = do
   lastUpdateIdRef <- newIORef (0 :: Int)
   forever $ do
     lastUpdateId <- readIORef lastUpdateIdRef
-    Logger.logDebug (EchoBot.hLogHandle newUserHandle) $ (T.pack . show $ lastUpdateId)
+    Logger.logDebug (EchoBot.hLogHandle newUserHandle) $ "From Telegram.run: current lastUpdateId is " .< (T.pack . show $ lastUpdateId)
     updates <- getUpdates newUserHandle lastUpdateId
     updateIds <- mapM (proceedUpdate newUserHandle handleMapRef) updates
     let newLastUpdateId = if null updateIds
@@ -131,7 +132,7 @@ useMethod h methodName requestObject = do
   let request = requestWithBody
         { method = "POST"
         }
-  Logger.logDebug (EchoBot.hLogHandle h) $ showBody . LowLevel.requestBody $ request
+  Logger.logDebug (EchoBot.hLogHandle h) $ "From Telegram.useMethod: requestBody is " .< (showBody . LowLevel.requestBody $ request)
   _ <- Simple.httpBS request
   pure ()
 
@@ -142,7 +143,7 @@ showBody _ = "no RequestBody"
 
 copyMessage :: Handle -> Update -> IO ()
 copyMessage h update = do
-  Logger.logDebug (EchoBot.hLogHandle h) $ "Calling copyMessage"
+  Logger.logDebug (EchoBot.hLogHandle h) $ "From Telegram.copyMessage: calling copyMessage"
   let requestObject = A.object
           [ "chat_id" .= chatId update
           , "from_chat_id" .= chatId update
@@ -153,7 +154,7 @@ copyMessage h update = do
 
 sendMessage :: Handle -> Update -> Message -> IO ()
 sendMessage h update msg = do
-  Logger.logDebug (EchoBot.hLogHandle h) $ "Calling sendMessage"
+  Logger.logDebug (EchoBot.hLogHandle h) $ "From Telegram.sendMessage: calling sendMessage"
   let requestObject = A.object
           [ "chat_id" .= chatId update
           , "text" .= msg
@@ -166,7 +167,7 @@ keySet = [aesonQQ| {"one_time_keyboard":true,"keyboard":[[{"text":"1"},{"text":"
 
 getNumber :: Handle -> Update -> Message -> IO T.Text
 getNumber h update title = do
-  Logger.logDebug (EchoBot.hLogHandle h) $ "Calling getNumber"
+  Logger.logDebug (EchoBot.hLogHandle h) $ "From Telegram.getNumber: calling getNumber"
   let requestObject = A.object
           [ "chat_id" .= chatId update
           , "text" .= title
@@ -174,7 +175,7 @@ getNumber h update title = do
           ]
   _ <- useMethod h "sendMessage" requestObject
   updates <- getUpdates h (1 + updateId update)
-  Logger.logDebug (EchoBot.hLogHandle h) $ (T.pack . show $ updates)
+  Logger.logDebug (EchoBot.hLogHandle h) $ "From Telegram.getNumber: last update is " .< (T.pack . show $ updates)
   let result = if null updates
         then "0"
         else message . last $ updates
