@@ -124,33 +124,41 @@ run newUserHandle = do
                           else 1 + (last updateIds)
     modifyIORef' lastUpdateIdRef (\_ -> newLastUpdateId)
 
-copyMessage :: Update -> IO ()
-copyMessage update = do
-  let requestObject = A.object
-        [ "chat_id" .= chatId update
-        , "from_chat_id" .= chatId update
-        , "message_id" .= messageId update
-        ] 
-  initialRequest <- Simple.parseRequest $ botURL ++ "copyMessage"
+useMethod :: Handle -> String -> A.Value -> IO ()
+useMethod h methodName requestObject = do
+  initialRequest <- Simple.parseRequest $ botURL ++ methodName
   let requestWithBody = Simple.setRequestBodyJSON requestObject initialRequest
   let request = requestWithBody
         { method = "POST"
         }
+  Logger.logDebug (EchoBot.hLogHandle h) $ showBody . LowLevel.requestBody $ request
   _ <- Simple.httpBS request
   pure ()
 
-sendMessage :: ChatId -> Message -> IO ()
-sendMessage chat msg = do
+showBody :: LowLevel.RequestBody -> T.Text
+showBody (LowLevel.RequestBodyLBS bs) = decodeUtf8 . toStrict $ bs
+showBody (LowLevel.RequestBodyBS bs) = decodeUtf8 bs
+showBody _ = "no RequestBody"
+
+copyMessage :: Handle -> Update -> IO ()
+copyMessage h update = do
+  Logger.logDebug (EchoBot.hLogHandle h) $ "Calling copyMessage"
   let requestObject = A.object
-          [ "chat_id" .= chat
+          [ "chat_id" .= chatId update
+          , "from_chat_id" .= chatId update
+          , "message_id" .= messageId update
+          ] 
+  _ <- useMethod h "copyMessage" requestObject
+  pure ()
+
+sendMessage :: Handle -> Update -> Message -> IO ()
+sendMessage h update msg = do
+  Logger.logDebug (EchoBot.hLogHandle h) $ "Calling sendMessage"
+  let requestObject = A.object
+          [ "chat_id" .= chatId update
           , "text" .= msg
           ]
-  initialRequest <- Simple.parseRequest $ botURL ++ "sendMessage"
-  let requestWithBody = Simple.setRequestBodyJSON requestObject initialRequest
-  let request = requestWithBody
-        { method = "POST"
-        }
-  _ <- Simple.httpBS request
+  _ <- useMethod h "sendMessage" requestObject
   pure ()
 
 keySet :: A.Value
@@ -164,13 +172,7 @@ getNumber h update title = do
           , "text" .= title
           , "reply_markup" .= keySet
           ]
-  initialRequest <- Simple.parseRequest $ botURL ++ "sendMessage"
-  let requestWithBody = Simple.setRequestBodyJSON requestObject initialRequest
-  let request = requestWithBody
-        { method = "POST"
-        }
-  Logger.logDebug (EchoBot.hLogHandle h) $ showBody . LowLevel.requestBody $ request
-  _ <- Simple.httpBS request
+  _ <- useMethod h "sendMessage" requestObject
   updates <- getUpdates h (1 + updateId update)
   Logger.logDebug (EchoBot.hLogHandle h) $ (T.pack . show $ updates)
   let result = if null updates
@@ -178,15 +180,10 @@ getNumber h update title = do
         else message . last $ updates
   pure result
 
-showBody :: LowLevel.RequestBody -> T.Text
-showBody (LowLevel.RequestBodyLBS bs) = decodeUtf8 . toStrict $ bs
-showBody (LowLevel.RequestBodyBS bs) = decodeUtf8 bs
-showBody _ = "no RequestBody"
-
 handleResponse :: Handle -> Update -> EchoBot.Response Message -> IO ()
-handleResponse _ update (EchoBot.MessageResponse x) = if (message update == x) 
-  then copyMessage update
-  else sendMessage (chatId update) x
+handleResponse h update (EchoBot.MessageResponse x) = if (message update == x) 
+  then copyMessage h update
+  else sendMessage h update x
 handleResponse h update (EchoBot.MenuResponse title options) = do
   rawText <- getNumber h update title
   let number = getNumberFromRawText rawText
