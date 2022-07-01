@@ -52,7 +52,9 @@ instance A.FromJSON Update where
     <*> (o .: "message" >>= (.: "chat") >>= (.: "id"))
     <*> (o .: "message" >>= \o1 -> o1 .:? "text" .!= "")
 
-data Updates = Updates [Update]
+data Updates = Updates
+  { unUpdates :: [Update]
+  }
 instance A.FromJSON Updates where
   parseJSON = A.withObject "FromJSON Updates" $ \o -> Updates
     <$> (o .: "result")
@@ -71,29 +73,19 @@ messageFromText = id
 
 getUpdates :: Handle -> UpdateId -> IO [Update]
 getUpdates h lastUpdateId = do
-  rawJSON <- getUpdatesAsJSON lastUpdateId
+  Logger.logDebug (EchoBot.hLogHandle h) $ "From Telegram.getUpdates: calling getUpdates"
+  let requestObject = A.object
+        [ "offset" .= show lastUpdateId
+        , "timeout" .= tgTimeout
+        ] 
+  rawJSON <- useMethod h "getUpdates" requestObject
   let eitherResult = A.eitherDecodeStrict' rawJSON :: Either String Updates
-  result <- eitherToUpdate h eitherResult
-  return result
-
-eitherToUpdate :: Handle -> Either String Updates -> IO [Update]
-eitherToUpdate h eitherResult = case eitherResult of
-  Left err -> do
-    Logger.logWarning (EchoBot.hLogHandle h) $ "From Telegram.eitherToUpdate: " .< (T.pack err)
-    pure []
-  Right (Updates updates) -> pure updates
-
-getUpdatesAsJSON :: UpdateId -> IO ByteString
-getUpdatesAsJSON lastUpdateId = do
-  let requestObject = A.object ["offset" .= show lastUpdateId, "timeout" .= tgTimeout] 
-  initialRequest <- Simple.parseRequest $ botURL ++ "getUpdates"
-  let requestWithBody = Simple.setRequestBodyJSON requestObject initialRequest
-  let request = requestWithBody
-        { method = "POST"
-        , responseTimeout = ResponseTimeoutNone
-        }
-  res <- Simple.httpBS request
-  return $ Simple.getResponseBody res
+  result <- either logErr (pure . unUpdates) eitherResult
+  pure result
+  where
+    logErr err = do
+      Logger.logWarning (EchoBot.hLogHandle h) $ "From Telegram.getUpdates: " .< (T.pack err)
+      pure []
 
 insertNewUser :: UserId -> Handle -> HandleMap -> HandleMap
 insertNewUser = M.insert
@@ -125,16 +117,18 @@ run newUserHandle = do
                           else 1 + (last updateIds)
     modifyIORef' lastUpdateIdRef (\_ -> newLastUpdateId)
 
-useMethod :: Handle -> String -> A.Value -> IO ()
+useMethod :: Handle -> String -> A.Value -> IO ByteString
 useMethod h methodName requestObject = do
   initialRequest <- Simple.parseRequest $ botURL ++ methodName
   let requestWithBody = Simple.setRequestBodyJSON requestObject initialRequest
   let request = requestWithBody
         { method = "POST"
+        , responseTimeout = ResponseTimeoutNone
         }
   Logger.logDebug (EchoBot.hLogHandle h) $ "From Telegram.useMethod: requestBody is " .< (showBody . LowLevel.requestBody $ request)
-  _ <- Simple.httpBS request
-  pure ()
+  result <- Simple.httpBS request
+  pure $ Simple.getResponseBody result
+
 
 showBody :: LowLevel.RequestBody -> T.Text
 showBody (LowLevel.RequestBodyLBS bs) = decodeUtf8 . toStrict $ bs
