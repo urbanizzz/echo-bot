@@ -145,10 +145,10 @@ copyMessage :: Handle -> Update -> IO ()
 copyMessage h update = do
   Logger.logDebug (EchoBot.hLogHandle h) $ "From Telegram.copyMessage: calling copyMessage"
   let requestObject = A.object
-          [ "chat_id" .= chatId update
-          , "from_chat_id" .= chatId update
-          , "message_id" .= messageId update
-          ] 
+        [ "chat_id" .= chatId update
+        , "from_chat_id" .= chatId update
+        , "message_id" .= messageId update
+        ] 
   _ <- useMethod h "copyMessage" requestObject
   pure ()
 
@@ -156,10 +156,20 @@ sendMessage :: Handle -> Update -> Message -> IO ()
 sendMessage h update msg = do
   Logger.logDebug (EchoBot.hLogHandle h) $ "From Telegram.sendMessage: calling sendMessage"
   let requestObject = A.object
-          [ "chat_id" .= chatId update
-          , "text" .= msg
-          ]
+        [ "chat_id" .= chatId update
+        , "text" .= msg
+        ]
   _ <- useMethod h "sendMessage" requestObject
+  pure ()
+
+deleteMessage :: Handle -> Update -> IO ()
+deleteMessage h update = do
+  Logger.logDebug (EchoBot.hLogHandle h) $ "From Telegram.deleteMessage: calling deleteMessage"
+  let requestObject = A.object
+        [ "chat_id" .= chatId update
+        , "message_id" .= messageId update
+        ]
+  _ <- useMethod h "deleteMessage" requestObject
   pure ()
 
 keySet :: A.Value
@@ -169,17 +179,18 @@ getNumber :: Handle -> Update -> Message -> IO T.Text
 getNumber h update title = do
   Logger.logDebug (EchoBot.hLogHandle h) $ "From Telegram.getNumber: calling getNumber"
   let requestObject = A.object
-          [ "chat_id" .= chatId update
-          , "text" .= title
-          , "reply_markup" .= keySet
-          ]
+        [ "chat_id" .= chatId update
+        , "text" .= title
+        , "reply_markup" .= keySet
+        ]
   _ <- useMethod h "sendMessage" requestObject
   updates <- getUpdates h (1 + updateId update)
   Logger.logDebug (EchoBot.hLogHandle h) $ "From Telegram.getNumber: last update is " .< (T.pack . show $ updates)
-  let result = if null updates
-        then "0"
-        else message . last $ updates
-  pure result
+  if null updates
+    then pure "0"
+    else do
+      _ <- deleteMessage h . last $ updates
+      pure . message . last $ updates
 
 handleResponse :: Handle -> Update -> EchoBot.Response Message -> IO ()
 handleResponse h update (EchoBot.MessageResponse x) = if (message update == x) 
