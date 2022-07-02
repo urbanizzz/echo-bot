@@ -59,9 +59,6 @@ instance A.FromJSON Updates where
   parseJSON = A.withObject "FromJSON Updates" $ \o -> Updates
     <$> (o .: "result")
 
-botURL :: String
-botURL = "https://api.telegram.org/bot949284451:AAGK8fCgIhv2KLcmT8Mz_bf-3hAl0Ccp7pA/"
-
 tgTimeout ::String 
 tgTimeout = "60"
 
@@ -119,7 +116,11 @@ run newUserHandle = do
 
 useMethod :: Handle -> String -> A.Value -> IO ByteString
 useMethod h methodName requestObject = do
-  initialRequest <- Simple.parseRequest $ botURL ++ methodName
+  let url = mconcat
+            [ EchoBot.confBotURL . EchoBot.hConfig $ h
+            , methodName
+            ]
+  initialRequest <- Simple.parseRequest url
   let requestWithBody = Simple.setRequestBodyJSON requestObject initialRequest
   let request = requestWithBody
         { method = "POST"

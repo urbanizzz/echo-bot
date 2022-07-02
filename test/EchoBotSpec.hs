@@ -147,7 +147,8 @@ stubConfig =
   Config
     { confRepeatReply = T.empty,
       confHelpReply = T.empty,
-      confRepetitionCount = 1
+      confRepetitionCount = 1,
+      confBotURL = ""
     }
 
 stateWith :: Config -> State

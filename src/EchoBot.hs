@@ -66,7 +66,8 @@ data Config = Config
     confRepeatReply :: Text,
     -- | The initial repetition count for echoing messages to start
     -- with.
-    confRepetitionCount :: Int
+    confRepetitionCount :: Int,
+    confBotURL :: String
   }
 
 -- | An external event that the bot should process and respond to.

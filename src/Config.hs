@@ -23,6 +23,7 @@ getBotConfig = do
     { EchoBot.confHelpReply = ConfigurationTypes.confHelpReply bot
     , EchoBot.confRepeatReply = ConfigurationTypes.confRepeatReply bot
     , EchoBot.confRepetitionCount = ConfigurationTypes.confRepeatDefault bot
+    , EchoBot.confBotURL = ConfigurationTypes.confBotURL bot
     }
 
 getLoggerConfig :: IO Logger.Impl.Config

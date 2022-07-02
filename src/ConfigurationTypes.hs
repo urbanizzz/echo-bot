@@ -32,8 +32,11 @@ defaultRepeatReply, defaultHelpReply :: Text
 defaultRepeatReply = "Current count of repetitions is {count}. Enter number for new count (1-5)." :: Text
 defaultHelpReply = "Echobot - simple echo bot.\n/help to get this help\n/repeat to set the number of repetitions" :: Text
 
+defaultBotURL :: String
+defaultBotURL = ""
+
 defaultBotConfig :: BotConfig
-defaultBotConfig = BotConfig defaultRepeatCount defaultRepeatReply defaultHelpReply
+defaultBotConfig = BotConfig defaultRepeatCount defaultRepeatReply defaultHelpReply defaultBotURL
 
 defaultLogHandler :: System.IO.FilePath
 defaultLogHandler = "./echo-bot.log" :: System.IO.FilePath
@@ -96,6 +99,7 @@ data BotConfig = BotConfig
   { confRepeatDefault :: Int
   , confRepeatReply   :: Text
   , confHelpReply     :: Text
+  , confBotURL        :: String
   }
 
 instance FromJSON BotConfig where
@@ -103,8 +107,9 @@ instance FromJSON BotConfig where
     rawCount    <- o .:? "repeatDefault" .!= defaultRepeatCount
     repeatReply <- o .:? "repeatReply"   .!= defaultRepeatReply
     helpReply   <- o .:? "helpReply"     .!= defaultHelpReply
+    botURL      <- o .:? "botURL"        .!= defaultBotURL
     let readyCount = restrictCount rawCount
-    pure (BotConfig readyCount repeatReply helpReply)
+    pure (BotConfig readyCount repeatReply helpReply botURL)
 
 restrictCount :: Int -> Int
 restrictCount x
