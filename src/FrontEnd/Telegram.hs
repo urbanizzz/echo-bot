@@ -130,7 +130,6 @@ useMethod h methodName requestObject = do
   result <- Simple.httpBS request
   pure $ Simple.getResponseBody result
 
-
 showBody :: LowLevel.RequestBody -> T.Text
 showBody (LowLevel.RequestBodyLBS bs) = decodeUtf8 . toStrict $ bs
 showBody (LowLevel.RequestBodyBS bs) = decodeUtf8 bs
@@ -170,6 +169,9 @@ deleteMessage h update = do
 keySet :: A.Value
 keySet = [aesonQQ| {"one_time_keyboard":true,"keyboard":[[{"text":"1"},{"text":"2"},{"text":"3"},{"text":"4"},{"text":"5"}]]} |]
 
+keyRemove :: A.Value
+keyRemove = [aesonQQ| {"remove_keyboard":true} |]
+
 getNumber :: Handle -> Update -> Message -> IO T.Text
 getNumber h update title = do
   Logger.logDebug (EchoBot.hLogHandle h) $ "From Telegram.getNumber: calling getNumber"
@@ -187,6 +189,17 @@ getNumber h update title = do
       _ <- deleteMessage h . last $ updates
       pure . message . last $ updates
 
+deleteKeyboard :: Handle -> Update -> Message -> IO ()
+deleteKeyboard h update title = do
+  Logger.logDebug (EchoBot.hLogHandle h) $ "From Telegram.deleteKeyboard: calling deleteKeyboard"
+  let requestObject = A.object
+        [ "chat_id" .= chatId update
+        , "text" .= title
+        , "reply_markup" .= keyRemove
+        ]
+  _ <- useMethod h "sendMessage" requestObject
+  pure ()
+
 handleResponse :: Handle -> Update -> EchoBot.Response Message -> IO ()
 handleResponse h update (EchoBot.MessageResponse x) = if (message update == x) 
   then copyMessage h update
@@ -194,6 +207,13 @@ handleResponse h update (EchoBot.MessageResponse x) = if (message update == x)
 handleResponse h update (EchoBot.MenuResponse title options) = do
   rawText <- getNumber h update title
   let number = getNumberFromRawText rawText
+  let newRepetitionCountTitle = if number == 0
+      then "Count of repetitions don't changed"
+      else mconcat
+            [ "New count of repetitions is "
+            , T.pack . show $ number
+            ]
+  deleteKeyboard h update newRepetitionCountTitle
   let maybeEvent = M.lookup number $ M.fromList options
   _ <- maybe (pure []) (EchoBot.respond h) maybeEvent
   pure ()
