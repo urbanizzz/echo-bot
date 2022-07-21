@@ -76,6 +76,7 @@ getUpdates h lastUpdateId = do
         , "timeout" .= tgTimeout
         ] 
   rawJSON <- useMethod h "getUpdates" requestObject
+  Logger.logDebug (EchoBot.hLogHandle h) $ "From Telegram.getUpdates: got update: " .< decodeUtf8 rawJSON
   let eitherResult = A.eitherDecodeStrict' rawJSON :: Either String Updates
   result <- either logErr (pure . unUpdates) eitherResult
   pure result
@@ -90,10 +91,17 @@ insertNewUser = M.insert
 proceedUpdate :: Handle -> IORef HandleMap -> Update -> IO UpdateId
 proceedUpdate newUserHandle handleMapRef update = do
   handleMap <- readIORef handleMapRef
-  modifyIORef' handleMapRef $ 
-    if (userId update) `M.notMember` handleMap
-      then insertNewUser (userId update) newUserHandle
-      else id
+  modifyFunc <- if (userId update) `M.notMember` handleMap
+                then do
+                  stateRef <- EchoBot.hGetState newUserHandle
+                  newStateRef <- newIORef stateRef
+                  let newUser = newUserHandle
+                                  { EchoBot.hGetState = readIORef newStateRef
+                                  , EchoBot.hModifyState' = modifyIORef' newStateRef
+                                  } 
+                  pure $ insertNewUser (userId update) newUser
+                else pure id
+  modifyIORef' handleMapRef modifyFunc
   handleMap' <- readIORef handleMapRef
   let handle = handleMap' M.! (userId update)
   response <- EchoBot.respond handle (EchoBot.MessageEvent (message update))
