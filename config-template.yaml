@@ -1,0 +1,21 @@
+# This is template config file
+# Be sure to set the botURL
+logger:
+  # handle of logger: "stderr", "stdout" or "path/to/file"
+  path: "./echo-bot.log"
+  # path: "stdout"
+  # logger levels: debug, info, warning, error
+  logLevel: debug
+
+botFrontEnd:
+  # Bot frontend: console, telegram
+  frontend: telegram
+
+bot:
+  # Default repeat (1-5)
+  repeatDefault: 3
+  repeatReply: "Current count of repetitions is {count}. Enter number for new count (1-5)."
+  helpReply: "Echobot - simple echo bot.\n/help to get this help\n/repeat to set the number of repetitions"
+  # Add your bot token. See https://core.telegram.org/bots/api#authorizing-your-bot for info 
+  botURL: "https://api.telegram.org/bot<token>/"
+
