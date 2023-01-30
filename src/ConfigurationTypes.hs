@@ -18,37 +18,8 @@ import qualified System.IO
 configFile :: System.IO.FilePath
 configFile = "./config.yaml"
 
-defaultFrontEnd :: FrontEndType
-defaultFrontEnd = ConsoleFrontEnd
-
-defaultFrontEndConfig :: FrontEndTypeConfig
-defaultFrontEndConfig = FrontEndTypeConfig defaultFrontEnd
-
-defaultRepeatCount, maxRepeatCount :: Int
-defaultRepeatCount = 3
+maxRepeatCount :: Int
 maxRepeatCount = 5
-
-defaultRepeatReply, defaultHelpReply :: Text
-defaultRepeatReply = "Current count of repetitions is {count}. Enter number for new count (1-5)." :: Text
-defaultHelpReply = "Echobot - simple echo bot.\n/help to get this help\n/repeat to set the number of repetitions" :: Text
-
-defaultBotURL :: String
-defaultBotURL = ""
-
-defaultBotConfig :: BotConfig
-defaultBotConfig = BotConfig defaultRepeatCount defaultRepeatReply defaultHelpReply defaultBotURL
-
-defaultLogHandler :: System.IO.FilePath
-defaultLogHandler = "./echo-bot.log" :: System.IO.FilePath
-
-defaultLevel :: LogLevel
-defaultLevel = Warning
-
-defaultLoggerConfig :: LoggerConfig
-defaultLoggerConfig = LoggerConfig defaultLogHandler defaultLevel 
-
-defaultConfig :: Config
-defaultConfig = Config defaultLoggerConfig defaultFrontEndConfig defaultBotConfig
 
 data FrontEndType
   = ConsoleFrontEnd
@@ -60,7 +31,7 @@ instance FromJSON FrontEndType where
     case t of
       "console"   -> pure ConsoleFrontEnd
       "telegram"  -> pure TelegramFrontEnd
-      _           -> pure defaultFrontEnd
+      _           -> error "Config error: frontend" 
 
 newtype FrontEndTypeConfig = FrontEndTypeConfig
   { confFrontEndType  :: FrontEndType
@@ -68,7 +39,7 @@ newtype FrontEndTypeConfig = FrontEndTypeConfig
 
 instance FromJSON FrontEndTypeConfig where
   parseJSON = withObject "FromJSON FrontEndTypeConfig" $ \o -> FrontEndTypeConfig
-    <$> o .:? "frontend" .!= defaultFrontEnd
+    <$> o .:? "frontend" .!= error "Config error: frontend"
     
 data LoggerConfig = LoggerConfig
   { confPath  :: FilePath
@@ -77,8 +48,8 @@ data LoggerConfig = LoggerConfig
 
 instance FromJSON LoggerConfig where
   parseJSON = withObject "FromJSON LoggerConfig" $ \o -> LoggerConfig
-    <$> o .:? "path"      .!= defaultLogHandler
-    <*> o .:? "logLevel"  .!= defaultLevel
+    <$> o .:? "path"      .!= error "Config error: path"
+    <*> o .:? "logLevel"  .!= error "Config error: logLevel"
 
 data LogLevel
   = Debug
@@ -93,7 +64,7 @@ instance FromJSON LogLevel where
       "info"    -> pure Info
       "warning" -> pure Warning
       "error"   -> pure Error
-      _         -> pure defaultLevel
+      _         -> error "Config error: logLevel"
 
 data BotConfig = BotConfig
   { confRepeatDefault :: Int
@@ -104,17 +75,17 @@ data BotConfig = BotConfig
 
 instance FromJSON BotConfig where
   parseJSON = withObject "FromJSON BotConfig" $ \o -> do
-    rawCount    <- o .:? "repeatDefault" .!= defaultRepeatCount
-    repeatReply <- o .:? "repeatReply"   .!= defaultRepeatReply
-    helpReply   <- o .:? "helpReply"     .!= defaultHelpReply
-    botURL      <- o .:? "botURL"        .!= defaultBotURL
+    rawCount    <- o .:? "repeatDefault" .!= error "Config error: repeatDefault"
+    repeatReply <- o .:? "repeatReply"   .!= error "Config error: repeatReply"  
+    helpReply   <- o .:? "helpReply"     .!= error "Config error: helpReply"    
+    botURL      <- o .:? "botURL"        .!= error "Config error: botURL"       
     let readyCount = restrictCount rawCount
     pure (BotConfig readyCount repeatReply helpReply botURL)
 
 restrictCount :: Int -> Int
 restrictCount x
   | x>0 && x<maxRepeatCount = x
-  | otherwise = defaultRepeatCount
+  | otherwise = error "Config error: repeatDefault"
 
 data Config = Config
   { confLogger      :: LoggerConfig
@@ -124,15 +95,15 @@ data Config = Config
 
 instance FromJSON Config where
   parseJSON = withObject "FromJSON Config" $ \o -> Config
-    <$> o .:? "logger"      .!= defaultLoggerConfig
-    <*> o .:? "botFrontEnd" .!= defaultFrontEndConfig
-    <*> o .:? "bot"         .!= defaultBotConfig
+    <$> o .:? "logger"      .!= error "Config error: logger"     
+    <*> o .:? "botFrontEnd" .!= error "Config error: botFrontEnd"
+    <*> o .:? "bot"         .!= error "Config error: bot"        
 
 configFromYaml :: IO Config
 configFromYaml = do
   errOrConfig <- decodeFileEither configFile
   let config = case errOrConfig of
                 (Right x) -> x
-                _         -> defaultConfig
+                (Left e)  -> error $ "Config error: " ++ (show e)
   pure config
 
